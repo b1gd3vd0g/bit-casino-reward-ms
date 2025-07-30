@@ -1,5 +1,5 @@
 mod db;
 
 fn main() {
-    println!("Hello, world!");
+    let redis_client = db::redis::connect();
 }

@@ -1,6 +1,6 @@
 use axum::Router;
-use redis::Client;
+use redis::aio::MultiplexedConnection;
 
-pub fn router() -> Router<Client> {
+pub fn router() -> Router<MultiplexedConnection> {
     Router::new()
 }

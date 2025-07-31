@@ -9,8 +9,8 @@ use crate::router::router;
 
 #[tokio::main]
 async fn main() {
-    let redis_client = db::redis::connect();
-    let app = router().with_state(redis_client);
+    let redis_connection = db::redis::connect().await;
+    let app = router().with_state(redis_connection);
 
     let address = SocketAddr::from(([0, 0, 0, 0], 3000));
     let listener = TcpListener::bind(address).await.unwrap();

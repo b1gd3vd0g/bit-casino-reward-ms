@@ -1,6 +1,6 @@
 use std::env;
 
-use redis::aio::MultiplexedConnection;
+use redis::{AsyncCommands, RedisError, aio::MultiplexedConnection};
 
 /// Return a MultiplexedConnection to the redis database.\
 /// As this function is essential to our API, it will panic if anything goes wrong.
@@ -20,4 +20,19 @@ pub async fn connect() -> MultiplexedConnection {
         .get_multiplexed_tokio_connection()
         .await
         .expect("Failed to create multiplexed redis connection.")
+}
+
+pub async fn get_key(
+    conn: &mut MultiplexedConnection,
+    key: &str,
+) -> Result<Option<String>, RedisError> {
+    conn.get(key).await
+}
+
+pub async fn set_key(
+    conn: &mut MultiplexedConnection,
+    key: &str,
+    value: &str,
+) -> Result<(), RedisError> {
+    conn.set(key, value).await
 }

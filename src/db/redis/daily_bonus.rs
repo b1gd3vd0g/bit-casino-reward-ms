@@ -41,70 +41,45 @@ fn generate_key(id: Uuid, days_from_now: i64) -> String {
     format!("daily_bonus_claimed:{}:{}", id, date)
 }
 
-/// Query the redis database to find out whether the player can claim their daily bonus or not.
+/// Query the database to find out about a player's daily bonus.
 /// # Arguments
-/// - `conn`: The connection to the database
-/// - `id`: The player's `player_id`
+/// - `redis`: The db connection.
+/// - `id`: The player's id.
 /// # Returns
-/// - `true` when the bonus is available
-/// - `false` when the bonus has already been claimed.
+/// - `0`: Whether or not the player's bonus is available for today.
+/// - `1`: The player's streak.
 /// # Errors
-/// - `RedisFailure::Query(e)` if the database query cannot be completed for some reason.
-pub async fn check_bonus_availability(
-    conn: &mut MultiplexedConnection,
+/// `RedisFailure::Query` if the database query fails due to a redis error.
+pub async fn check_bonus(
+    redis: &mut MultiplexedConnection,
     id: Uuid,
-) -> Result<bool, RedisFailure> {
-    let key = generate_key(id, 0);
-    let search: Option<String> = match conn.get(key).await {
-        Ok(opt) => opt,
-        Err(e) => return Err(RedisFailure::Query(e)),
-    };
-    Ok(match search {
-        Some(_) => false,
-        None => true,
-    })
-}
-
-/// Query the redis database to find out how many days long a player's current streak is.\
-/// This function checks the database for records of today's streak - if it can't find that, it
-/// checks yesterday as well.
-/// # Arguments
-/// * `conn` - The connection to the database.
-/// * `id` - The player's `player_id`
-/// # Returns
-/// The player's streak (0 if it does not exist).
-/// # Errors
-/// - `RedisFailure::Query(e)` if either query fails.
-pub async fn check_bonus_streak(
-    conn: &mut MultiplexedConnection,
-    id: Uuid,
-) -> Result<u32, RedisFailure> {
+) -> Result<(bool, u32), RedisFailure> {
     let today = generate_key(id, 0);
-    let streak: Option<u32> = match conn.get(today).await {
+    let streak: Option<u32> = match redis.get(today).await {
         Ok(opt) => opt,
         Err(e) => return Err(RedisFailure::Query(e)),
     };
     match streak {
-        Some(s) => return Ok(s),
+        Some(s) => return Ok((false, s)),
         None => (),
     }
 
     let yesterday = generate_key(id, -1);
-    let streak: Option<u32> = match conn.get(yesterday).await {
+    let streak: Option<u32> = match redis.get(yesterday).await {
         Ok(s) => s,
         Err(e) => return Err(RedisFailure::Query(e)),
     };
     Ok(match streak {
-        Some(s) => s,
-        None => 0,
+        Some(s) => (true, s),
+        None => (true, 0),
     })
 }
 
 /// Query the redis database to set the daily bonus as claimed.\
 /// **Note:** This function does not actually reward a daily bonus - it simply marks it as claimed.
 /// # Arguments
-/// * `conn` - The connection to the database
-/// * `id` - The player's `player_id`
+/// - `redis`: The db connection.
+/// - `id`: The player's id.
 /// # Returns
 /// The player's streak after claiming the reward.
 /// # Errors
@@ -114,17 +89,16 @@ pub async fn set_bonus_claimed(
     conn: &mut MultiplexedConnection,
     id: Uuid,
 ) -> Result<u32, RedisFailure> {
-    let available = match check_bonus_availability(conn, id).await {
-        Ok(b) => b,
+    let bonus_info = match check_bonus(conn, id).await {
+        Ok(tup) => tup,
         Err(f) => return Err(f),
     };
-    match available {
+    match bonus_info.0 {
         true => (),
         false => return Err(RedisFailure::Conflict),
     }
-    let streak = check_bonus_streak(conn, id).await?;
     let key = generate_key(id, 0);
-    let streak = streak + 1;
+    let streak = bonus_info.1 + 1;
     match conn.set_ex(key, streak, 48 * 3600).await {
         Ok(()) => Ok(streak),
         Err(e) => Err(RedisFailure::Query(e)),

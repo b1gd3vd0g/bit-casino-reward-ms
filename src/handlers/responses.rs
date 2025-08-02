@@ -1,5 +1,7 @@
+//! This module keeps the types of structs that are returned in the JSON response bodies.
 use serde::Serialize;
 
+/// Returned whenever an error occured and the request could not be completed.
 #[derive(Serialize)]
 pub struct MessageResponse {
     message: String,
@@ -13,19 +15,23 @@ impl MessageResponse {
     }
 }
 
+/// Returned from a successful check request.
 #[derive(Serialize)]
-pub struct AvailabilityResponse {
+pub struct CheckResponse {
     available: bool,
+    streak: u32,
 }
 
-impl AvailabilityResponse {
-    pub fn new(available: bool) -> Self {
+impl CheckResponse {
+    pub fn new(tup: (bool, u32)) -> Self {
         Self {
-            available: available,
+            available: tup.0,
+            streak: tup.1,
         }
     }
 }
 
+/// Returned from a successful Claim request.
 #[derive(Serialize)]
 pub struct StreakResponse {
     streak: u32,

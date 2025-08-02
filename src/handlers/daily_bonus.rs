@@ -17,7 +17,6 @@ use crate::{
         helper::authenticate_player,
         responses::{AvailabilityResponse, MessageResponse, StreakResponse},
     },
-    requests::player::authenticate_player_token,
 };
 
 pub async fn handle_claim_daily_bonus(

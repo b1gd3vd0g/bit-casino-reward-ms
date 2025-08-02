@@ -4,6 +4,8 @@ use reqwest::{Client, StatusCode, header::HeaderMap};
 use serde::Deserialize;
 use uuid::Uuid;
 
+use crate::failure::Failure;
+
 /// This can be used to pull the `id` field from a JSON response body (for example, `GET
 /// <player-ms>/authn`).
 #[derive(Deserialize)]
@@ -16,6 +18,15 @@ pub enum TokenAuthnFailure {
     RequestFailed,
     /// The provided token could not be used to authenticate a player.
     BadToken,
+}
+
+impl Failure for TokenAuthnFailure {
+    fn message(&self) -> String {
+        String::from(match self {
+            Self::RequestFailed => "Could not reach the player microservice to authenticate token.",
+            Self::BadToken => "The provided token could not be used to authenticate the player.",
+        })
+    }
 }
 
 /// Make a request to the player microservice attempting to validate a player authentication token.\

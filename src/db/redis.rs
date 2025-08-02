@@ -7,6 +7,8 @@ use std::env;
 
 use redis::{RedisError, aio::MultiplexedConnection};
 
+use crate::failure::Failure;
+
 /// Return a MultiplexedConnection to the redis database.
 /// # Panics:
 /// This function panics if
@@ -32,4 +34,15 @@ pub enum RedisFailure {
     Query(RedisError),
     /// The request conflicts with the state of the data (trying to claim daily bonus twice).
     Conflict,
+}
+
+impl Failure for RedisFailure {
+    fn message(&self) -> String {
+        match self {
+            Self::Query(e) => e.to_string(),
+            Self::Conflict => {
+                String::from("You cannot claim the daily bonus twice in a single UTC day.")
+            }
+        }
+    }
 }

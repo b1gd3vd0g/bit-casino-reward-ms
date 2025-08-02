@@ -1,5 +1,6 @@
 mod db;
 mod failure;
+mod handlers;
 mod requests;
 mod router;
 

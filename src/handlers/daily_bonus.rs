@@ -1,3 +1,5 @@
+//! This module holds the HTTP handler functions for checking and claiming daily bonuses.
+
 use axum::{
     Json,
     extract::State,
@@ -10,22 +12,50 @@ use reqwest::StatusCode;
 use crate::{
     db::redis::{
         RedisFailure,
-        daily_bonus::{check_bonus_availability, check_bonus_streak, set_bonus_claimed},
+        daily_bonus::{check_bonus, set_bonus_claimed},
     },
     failure::Failure,
     handlers::{
         helper::authenticate_player,
-        responses::{AvailabilityResponse, MessageResponse, StreakResponse},
+        responses::{CheckResponse, MessageResponse, StreakResponse},
     },
 };
 
+/// Handle the HTTP request to check somebodys daily bonus information.
+/// # Arguments:
+/// - `headers`: The request HTTP headers (should include a bearer token in the Authorization
+///   header).
+/// - `redis`: The async redis connection.
+pub async fn handle_check_daily_bonus(
+    headers: HeaderMap,
+    State(mut redis): State<MultiplexedConnection>,
+) -> Response {
+    let id = match authenticate_player(headers).await {
+        Ok(u) => u,
+        Err(r) => return r,
+    };
+    match check_bonus(&mut redis, id).await {
+        Ok(tup) => (StatusCode::OK, Json(CheckResponse::new(tup))).into_response(),
+        Err(f) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(MessageResponse::new(&f.message())),
+        )
+            .into_response(),
+    }
+}
+
+/// Handle the HTTP request to claim a daily bonus.
+/// # Arguments:
+/// - `headers`: The request HTTP headers (should include a bearer token in the Authorization
+///   header).
+/// - `redis`: The async redis connection.
 pub async fn handle_claim_daily_bonus(
     headers: HeaderMap,
     State(mut redis): State<MultiplexedConnection>,
 ) -> Response {
     let id = match authenticate_player(headers).await {
         Ok(u) => u,
-        Err(r) => return r, // 401
+        Err(r) => return r,
     };
     match set_bonus_claimed(&mut redis, id).await {
         Ok(streak) => (StatusCode::OK, Json(StreakResponse::new(streak))).into_response(),
@@ -38,46 +68,4 @@ pub async fn handle_claim_daily_bonus(
         )
             .into_response(),
     }
-}
-
-pub async fn handle_check_daily_bonus_availability(
-    headers: HeaderMap,
-    State(mut redis): State<MultiplexedConnection>,
-) -> Response {
-    let id = match authenticate_player(headers).await {
-        Ok(u) => u,
-        Err(r) => return r,
-    };
-    let available = match check_bonus_availability(&mut redis, id).await {
-        Ok(b) => b,
-        Err(f) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR, // 500
-                Json(MessageResponse::new(&f.message())),
-            )
-                .into_response();
-        }
-    };
-    (StatusCode::OK, Json(AvailabilityResponse::new(available))).into_response()
-}
-
-pub async fn handle_check_daily_bonus_streak(
-    headers: HeaderMap,
-    State(mut redis): State<MultiplexedConnection>,
-) -> Response {
-    let id = match authenticate_player(headers).await {
-        Ok(u) => u,
-        Err(r) => return r,
-    };
-    let streak = match check_bonus_streak(&mut redis, id).await {
-        Ok(s) => s,
-        Err(f) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(MessageResponse::new(&f.message())),
-            )
-                .into_response();
-        }
-    };
-    (StatusCode::OK, Json(StreakResponse::new(streak))).into_response()
 }

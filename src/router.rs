@@ -5,16 +5,12 @@
 use axum::{Router, routing::get};
 use redis::aio::MultiplexedConnection;
 
-use crate::handlers::daily_bonus::{
-    handle_check_daily_bonus_availability, handle_check_daily_bonus_streak,
-    handle_claim_daily_bonus,
-};
+use crate::handlers::daily_bonus::{handle_check_daily_bonus, handle_claim_daily_bonus};
 
+/// Provide the HTTP router for the app **without** its required state.
 pub fn router() -> Router<MultiplexedConnection> {
-    Router::new()
-        .route(
-            "/daily",
-            get(handle_check_daily_bonus_availability).post(handle_claim_daily_bonus),
-        )
-        .route("/daily/streak", get(handle_check_daily_bonus_streak))
+    Router::new().route(
+        "/daily",
+        get(handle_check_daily_bonus).post(handle_claim_daily_bonus),
+    )
 }

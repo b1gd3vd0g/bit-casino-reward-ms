@@ -113,7 +113,7 @@ pub async fn check_bonus_streak(
 pub async fn set_bonus_claimed(
     conn: &mut MultiplexedConnection,
     id: Uuid,
-) -> Result<(), RedisFailure> {
+) -> Result<u32, RedisFailure> {
     let already_claimed = match check_bonus_availability(conn, id).await {
         Ok(b) => b,
         Err(f) => return Err(f),
@@ -124,8 +124,9 @@ pub async fn set_bonus_claimed(
     }
     let streak = check_bonus_streak(conn, id).await?;
     let key = generate_key(id, 0);
-    match conn.set_ex(key, streak + 1, 48 * 3600).await {
-        Ok(()) => Ok(()),
+    let streak = streak + 1;
+    match conn.set_ex(key, streak, 48 * 3600).await {
+        Ok(()) => Ok(streak),
         Err(e) => Err(RedisFailure::Query(e)),
     }
 }

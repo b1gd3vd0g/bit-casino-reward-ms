@@ -11,7 +11,8 @@ use crate::{
     requests::player::authenticate_player_token,
 };
 
-enum AuthHeaderFailure {
+#[derive(Debug)]
+pub enum AuthHeaderFailure {
     Nonparceable,
     NotFound,
     NoPrefix,
@@ -34,7 +35,7 @@ impl Failure for AuthHeaderFailure {
 /// The value following the "Bearer " prefix in the Authorization header.
 /// # Errors:
 /// When the authentication token was not provided properly.
-fn extract_authn_token(headers: HeaderMap) -> Result<String, AuthHeaderFailure> {
+pub fn extract_authn_token(headers: &HeaderMap) -> Result<String, AuthHeaderFailure> {
     let authx_val = match headers.get("Authorization") {
         Some(value) => value,
         None => return Err(AuthHeaderFailure::NotFound),
@@ -59,7 +60,7 @@ fn extract_authn_token(headers: HeaderMap) -> Result<String, AuthHeaderFailure> 
 /// # Errors
 /// Whenever the players cannot be authenticated for whatever reason.
 /// It returns a valid HTTP response that can be directly returned from the handler.
-pub async fn authenticate_player(headers: HeaderMap) -> Result<Uuid, Response> {
+pub async fn authenticate_player(headers: &HeaderMap) -> Result<Uuid, Response> {
     let token = match extract_authn_token(headers) {
         Ok(str) => str,
         Err(f) => {

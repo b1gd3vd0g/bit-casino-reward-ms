@@ -16,9 +16,10 @@ use crate::{
     },
     failure::Failure,
     handlers::{
-        helper::authenticate_player,
+        helper::{authenticate_player, extract_authn_token},
         responses::{CheckResponse, MessageResponse, StreakResponse},
     },
+    requests::currency::{PayoutFailure, payout_daily_bonus},
 };
 
 /// Handle the HTTP request to check somebodys daily bonus information.
@@ -30,7 +31,7 @@ pub async fn handle_check_daily_bonus(
     headers: HeaderMap,
     State(mut redis): State<MultiplexedConnection>,
 ) -> Response {
-    let id = match authenticate_player(headers).await {
+    let id = match authenticate_player(&headers).await {
         Ok(u) => u,
         Err(r) => return r,
     };
@@ -53,19 +54,37 @@ pub async fn handle_claim_daily_bonus(
     headers: HeaderMap,
     State(mut redis): State<MultiplexedConnection>,
 ) -> Response {
-    let id = match authenticate_player(headers).await {
+    let id = match authenticate_player(&headers).await {
         Ok(u) => u,
         Err(r) => return r,
     };
-    match set_bonus_claimed(&mut redis, id).await {
-        Ok(streak) => (StatusCode::OK, Json(StreakResponse::new(streak))).into_response(),
-        Err(f) => (
-            match f {
-                RedisFailure::Conflict => StatusCode::CONFLICT,
-                RedisFailure::Query(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            },
-            Json(MessageResponse::new(&f.message())),
-        )
-            .into_response(),
+    let token = extract_authn_token(&headers).unwrap();
+
+    let streak = match set_bonus_claimed(&mut redis, id).await {
+        Ok(s) => s,
+        Err(f) => {
+            return (
+                match f {
+                    RedisFailure::Conflict => StatusCode::CONFLICT,
+                    RedisFailure::Query(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                },
+                Json(MessageResponse::new(&f.message())),
+            )
+                .into_response();
+        }
+    };
+    match payout_daily_bonus(token, streak).await {
+        Ok(_) => return (StatusCode::OK, Json(StreakResponse::new(streak))).into_response(),
+        Err(f) => {
+            return (
+                match f {
+                    PayoutFailure::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                    PayoutFailure::Unauthorized => StatusCode::UNAUTHORIZED,
+                    PayoutFailure::RequestFailed => StatusCode::INTERNAL_SERVER_ERROR,
+                },
+                Json(MessageResponse::new(&f.message())),
+            )
+                .into_response();
+        }
     }
 }

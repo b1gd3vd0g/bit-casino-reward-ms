@@ -7,6 +7,9 @@ A **REST API** written in **Rust** handling **daily bonus claims** and **daily s
 
 ### Features
 
+- Stores ephemeral data for lightning fast access in **Redis**.
+- Uses **idempotent keys** to prevent claiming two rewards in the same day.
+
 ## How to use this repository
 
 This service is not very useful on its own. It relies upon the [**Player Microservice**](https://github.com/b1gd3vd0g/bit-casino-player-ms), [**Currency Microservice**](https://github.com/b1gd3vd0g/bit-casino-currency-ms), and a **Redis** database.
